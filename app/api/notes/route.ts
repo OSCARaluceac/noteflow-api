@@ -13,20 +13,19 @@ const noteSchema = z.object({
 
 export async function GET() {
   try {
-    // Consulta "Maestra" con JOIN para traer notas, sus tareas y etiquetas de un solo viaje
+    // Eliminamos el JOIN a note_tags; ahora usamos la columna 'tags' integrada
     const notes = await query(`
       SELECT 
         n.*,
-        COALESCE(json_agg(DISTINCT ci.*) FILTER (WHERE ci.id IS NOT NULL), '[]') as items,
-        COALESCE(json_agg(DISTINCT nt.tag) FILTER (WHERE nt.tag IS NOT NULL), '[]') as tags
+        COALESCE(json_agg(DISTINCT ci.*) FILTER (WHERE ci.id IS NOT NULL), '[]') as items
       FROM notes n
       LEFT JOIN checklist_items ci ON n.id = ci.note_id
-      LEFT JOIN note_tags nt ON n.id = nt.note_id
       GROUP BY n.id
       ORDER BY n.created_at DESC
     `);
     return NextResponse.json(notes);
   } catch (error) {
+    console.error("Falla en GET:", error);
     return NextResponse.json({ error: 'Error al obtener datos' }, { status: 500 });
   }
 }
@@ -36,28 +35,33 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { title, type, content, color, items, tags } = noteSchema.parse(body);
 
-    // 1. Insertar la nota principal
+    // 1. Insertar la nota principal (inyectando directamente el arreglo de tags)
     const [note]: any = await query(
-      'INSERT INTO notes (title, type, content, color) VALUES ($1, $2, $3, $4) RETURNING *',
-      [title, type, content, color]
+      'INSERT INTO notes (title, type, content, color, tags) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [title, type, content, color, tags || []]
     );
 
-    // 2. Si es una misión (checklist), insertar los items
+    // 2. Si es una misión (checklist), insertamos los items y los guardamos para la respuesta
+    let insertedItems = [];
     if (type === 'checklist' && items) {
       for (const item of items) {
-        await query('INSERT INTO checklist_items (note_id, text) VALUES ($1, $2)', [note.id, item.text]);
+        const [ci]: any = await query(
+          'INSERT INTO checklist_items (note_id, text) VALUES ($1, $2) RETURNING *', 
+          [note.id, item.text]
+        );
+        insertedItems.push(ci);
       }
     }
 
-    // 3. Si tiene etiquetas, insertarlas
-    if (tags) {
-      for (const tag of tags) {
-        await query('INSERT INTO note_tags (note_id, tag) VALUES ($1, $2)', [note.id, tag]);
-      }
-    }
+    // 3. Devolvemos la estructura completa para que la aplicación móvil no pierda el rastro
+    const completeNote = {
+      ...note,
+      items: insertedItems
+    };
 
-    return NextResponse.json(note, { status: 201 });
+    return NextResponse.json(completeNote, { status: 201 });
   } catch (error) {
+    console.error("Falla en POST:", error);
     return NextResponse.json({ error: 'Error en la creación' }, { status: 400 });
   }
 }
