@@ -2,92 +2,93 @@ import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { z } from 'zod';
 
+// BUG 4 RESUELTO: Ahora permitimos actualizar el array de tags
 const patchSchema = z.object({
-  title:   z.string().min(3).optional(),
+  title: z.string().min(3).optional(),
   content: z.string().optional(),
-  color:   z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
-}).refine(data => Object.keys(data).length > 0, {
-  message: 'Se requiere al menos un campo para actualizar',
+  color: z.string().optional(),
+  tags: z.array(z.string()).optional(), 
 });
 
-type Params = { params: Promise<{ id: string }> };
-
-// GET /api/notes/:id — devuelve una nota concreta con items y tags
-export async function GET(_req: Request, { params }: Params) {
+export async function GET(request: Request, { params }: { params: { id: string } }) {
   try {
-    const { id } = await params;
-    const [note] = await query(`
-      SELECT
-        n.*,
-        json_agg(ci.*) FILTER (WHERE ci.id IS NOT NULL) AS items,
-        json_agg(nt.tag) FILTER (WHERE nt.id IS NOT NULL) AS tags
-      FROM notes n
-      LEFT JOIN checklist_items ci ON n.id = ci.note_id
-      LEFT JOIN note_tags nt ON n.id = nt.note_id
-      WHERE n.id = $1
-      GROUP BY n.id
-    `, [id]);
-
+    // BUG 2 RESUELTO: Lectura directa sin JOIN a note_tags
+    const [note]: any = await query('SELECT * FROM notes WHERE id = $1', [params.id]);
+    
     if (!note) {
       return NextResponse.json({ error: 'Nota no encontrada' }, { status: 404 });
     }
 
-    return NextResponse.json(note);
-  } catch {
-    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
-  }
-}
-
-// PATCH /api/notes/:id — actualiza campos parcialmente
-export async function PATCH(request: Request, { params }: Params) {
-  try {
-    const { id } = await params;
-    const body = await request.json();
-    const result = patchSchema.safeParse(body);
-
-    if (!result.success) {
-      return NextResponse.json(
-        { error: 'Datos inválidos', details: result.error.errors },
-        { status: 400 }
+    // TS7034 / TS7005 RESUELTO: Declaración explícita del tipo de arreglo
+    let items: any[] = [];
+    if (note.type === 'checklist') {
+      items = await query(
+        'SELECT * FROM checklist_items WHERE note_id = $1 ORDER BY created_at ASC',
+        [note.id]
       );
     }
 
-    const fields = result.data;
-    const keys = Object.keys(fields) as (keyof typeof fields)[];
-
-    // Construimos el SET dinámicamente solo con los campos enviados
-    const setClauses = keys.map((key, i) => `${key} = $${i + 2}`).join(', ');
-    const values = keys.map(k => fields[k]);
-
-    const [updated] = await query(
-      `UPDATE notes SET ${setClauses}, updated_at = NOW() WHERE id = $1 RETURNING *`,
-      [id, ...values]
-    );
-
-    if (!updated) {
-      return NextResponse.json({ error: 'Nota no encontrada' }, { status: 404 });
-    }
-
-    return NextResponse.json(updated);
-  } catch {
+    return NextResponse.json({ ...note, items });
+  } catch (error) {
+    console.error("Falla en GET individual:", error);
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
   }
 }
 
-// DELETE /api/notes/:id — elimina la nota.
-// ON DELETE CASCADE en la BD borra automáticamente sus checklist_items y note_tags.
-export async function DELETE(_req: Request, { params }: Params) {
+export async function PATCH(request: Request, { params }: { params: { id: string } }) {
   try {
-    const { id } = await params;
-    const result = await query('DELETE FROM notes WHERE id = $1 RETURNING id', [id]);
+    const body = await request.json();
+    const data = patchSchema.parse(body);
 
-    if (result.length === 0) {
+    const setClauses = [];
+    const values = [];
+    let paramIndex = 1;
+
+    for (const [key, value] of Object.entries(data)) {
+      setClauses.push(`${key} = $${paramIndex}`);
+      values.push(value);
+      paramIndex++;
+    }
+
+    if (setClauses.length === 0) {
+      return NextResponse.json({ error: 'No hay datos para actualizar' }, { status: 400 });
+    }
+
+    values.push(params.id);
+    const queryString = `
+      UPDATE notes 
+      SET ${setClauses.join(', ')} 
+      WHERE id = $${paramIndex} 
+      RETURNING *
+    `;
+
+    const [updatedNote]: any = await query(queryString, values);
+
+    if (!updatedNote) {
       return NextResponse.json({ error: 'Nota no encontrada' }, { status: 404 });
     }
 
-    // 204 No Content: operación exitosa sin cuerpo de respuesta
-    return new NextResponse(null, { status: 204 });
-  } catch {
-    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
+    return NextResponse.json(updatedNote);
+  } catch (error) {
+    console.error("Falla en PATCH:", error);
+    return NextResponse.json({ error: 'Datos inválidos o error en actualización' }, { status: 400 });
+  }
+}
+
+export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+  try {
+    const [deletedNote]: any = await query(
+      'DELETE FROM notes WHERE id = $1 RETURNING id',
+      [params.id]
+    );
+
+    if (!deletedNote) {
+      return NextResponse.json({ error: 'Nota no encontrada' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, id: deletedNote.id });
+  } catch (error) {
+    console.error("Falla en DELETE:", error);
+    return NextResponse.json({ error: 'Error al eliminar' }, { status: 500 });
   }
 }

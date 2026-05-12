@@ -11,9 +11,9 @@ const noteSchema = z.object({
   tags: z.array(z.string()).optional(),
 });
 
+// En app/api/notes/route.ts (Asegúrate de que el GET sea así)
 export async function GET() {
   try {
-    // Eliminamos el JOIN a note_tags; ahora usamos la columna 'tags' integrada
     const notes = await query(`
       SELECT 
         n.*,
