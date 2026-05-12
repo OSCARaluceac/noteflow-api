@@ -1,12 +1,15 @@
 import { neon } from '@neondatabase/serverless';
 
-const sql = neon(process.env.DATABASE_URL!);
+if (!process.env.DATABASE_URL) {
+  throw new Error('DATABASE_URL no está definida en las variables de entorno');
+}
+
+const sql = neon(process.env.DATABASE_URL);
 
 export async function query<T = unknown>(
   text: string,
-  params: any[] = []
+  params: unknown[] = []
 ): Promise<T[]> {
-  // Forzamos a TypeScript a entender que estamos usando la función de consulta estándar
-  const result = await (sql as any)(text, params);
+  const result = await sql(text, params);
   return result as T[];
 }

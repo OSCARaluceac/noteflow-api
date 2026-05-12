@@ -10,15 +10,15 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",
-    "@shopify/flash-list": "2.0.2",
     "next": "^16.2.6",
     "react": "^19.2.6",
-    "react-dom": "19.1.0",
+    "react-dom": "^19.2.6",
     "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/node": "^20",
     "@types/react": "^19",
+    "@types/react-dom": "^19",
     "eslint": "^9.39.4",
     "typescript": "^5"
   }

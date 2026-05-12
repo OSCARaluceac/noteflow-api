@@ -2,34 +2,29 @@
 -- NOTEFLOW — Consultas SQL de referencia
 -- ============================================================
 
--- Todas las notas con sus items y tags en una sola query.
+-- Todas las notas con sus items en una sola query.
+-- Los tags vienen directamente de la columna tags[] de notes (n.*).
 --
--- LEFT JOIN: devuelve TODAS las notas, aunque no tengan items o tags.
--- (INNER JOIN descartaría las notas sin items, que es incorrecto aquí.)
---
+-- LEFT JOIN: devuelve TODAS las notas, aunque no tengan items.
 -- json_agg(): agrega las filas relacionadas en un array JSON.
 -- FILTER (WHERE ... IS NOT NULL): evita que aparezca [null] cuando no hay items.
 -- GROUP BY n.id: agrupa los JOINs para que cada nota sea una sola fila.
 SELECT
   n.*,
-  json_agg(ci.*) FILTER (WHERE ci.id IS NOT NULL) AS items,
-  json_agg(nt.tag) FILTER (WHERE nt.id IS NOT NULL) AS tags
+  COALESCE(json_agg(DISTINCT ci.*) FILTER (WHERE ci.id IS NOT NULL), '[]') AS items
 FROM notes n
 LEFT JOIN checklist_items ci ON n.id = ci.note_id
-LEFT JOIN note_tags nt ON n.id = nt.note_id
 GROUP BY n.id
 ORDER BY n.created_at DESC;
 
 
--- Una nota concreta con sus items y tags.
+-- Una nota concreta con sus items.
 -- Mismo patrón que arriba pero filtrando por id.
 SELECT
   n.*,
-  json_agg(ci.*) FILTER (WHERE ci.id IS NOT NULL) AS items,
-  json_agg(nt.tag) FILTER (WHERE nt.id IS NOT NULL) AS tags
+  COALESCE(json_agg(DISTINCT ci.*) FILTER (WHERE ci.id IS NOT NULL), '[]') AS items
 FROM notes n
 LEFT JOIN checklist_items ci ON n.id = ci.note_id
-LEFT JOIN note_tags nt ON n.id = nt.note_id
 WHERE n.id = $1
 GROUP BY n.id;
 

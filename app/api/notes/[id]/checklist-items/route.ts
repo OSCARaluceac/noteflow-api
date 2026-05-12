@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { z } from 'zod';
 
@@ -6,26 +6,27 @@ const itemSchema = z.object({
   text: z.string().min(1, 'El texto del item no puede estar vacío'),
 });
 
-type Params = { params: Promise<{ id: string }> };
+type Ctx = { params: Promise<{ id: string }> };
 
-// GET /api/notes/:id/checklist-items — lista todos los items de una nota
-export async function GET(_req: Request, { params }: Params) {
+// GET /api/notes/:id/checklist-items
+export async function GET(_req: NextRequest, ctx: Ctx) {
   try {
-    const { id } = await params;
+    const { id } = await ctx.params;
     const items = await query(
       'SELECT * FROM checklist_items WHERE note_id = $1 ORDER BY id',
       [id]
     );
     return NextResponse.json(items);
-  } catch {
+  } catch (error) {
+    console.error('GET checklist-items error:', error);
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
   }
 }
 
-// POST /api/notes/:id/checklist-items — añade un item a una nota existente
-export async function POST(request: Request, { params }: Params) {
+// POST /api/notes/:id/checklist-items
+export async function POST(request: NextRequest, ctx: Ctx) {
   try {
-    const { id } = await params;
+    const { id } = await ctx.params;
     const body = await request.json();
     const result = itemSchema.safeParse(body);
 
@@ -36,7 +37,6 @@ export async function POST(request: Request, { params }: Params) {
       );
     }
 
-    // Verificar que la nota existe y es de tipo checklist
     const [note] = await query<{ type: string }>(
       'SELECT type FROM notes WHERE id = $1',
       [id]
@@ -59,7 +59,8 @@ export async function POST(request: Request, { params }: Params) {
     );
 
     return NextResponse.json(item, { status: 201 });
-  } catch {
+  } catch (error) {
+    console.error('POST checklist-items error:', error);
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
   }
 }
