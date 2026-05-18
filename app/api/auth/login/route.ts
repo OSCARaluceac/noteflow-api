@@ -2,12 +2,11 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { query } from '@/lib/db';
 
-const registerSchema = z.object({
-  username: z.string().min(3).max(50),
-  password: z.string().min(6),
+const loginSchema = z.object({
+  username: z.string().min(1),
+  password: z.string().min(1),
 });
 
-// Función simple de hash sin bcrypt (pure JS, compatible con Edge/Serverless)
 async function hashPassword(password: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(password);
@@ -16,44 +15,51 @@ async function hashPassword(password: string): Promise<string> {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+async function signJWT(payload: Record<string, unknown>): Promise<string> {
+  const secret = process.env.JWT_SECRET ?? 'taskflow-secret-dev';
+  const encoder = new TextEncoder();
+
+  const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
+    .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  const body = btoa(JSON.stringify({ ...payload, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7 }))
+    .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+
+  const key = await crypto.subtle.importKey(
+    'raw', encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false, ['sign']
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(`${header}.${body}`));
+  const sigB64 = btoa(String.fromCharCode(...new Uint8Array(sig)))
+    .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+
+  return `${header}.${body}.${sigB64}`;
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const result = registerSchema.safeParse(body);
+    const result = loginSchema.safeParse(body);
 
     if (!result.success) {
-      return NextResponse.json(
-        { error: 'Datos inválidos', details: result.error.errors },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 });
     }
 
     const { username, password } = result.data;
-
-    // Comprobar si el usuario ya existe
-    const existing = await query(
-      'SELECT id FROM users WHERE username = $1',
-      [username]
-    );
-
-    if (existing.length > 0) {
-      return NextResponse.json(
-        { error: 'El usuario ya existe' },
-        { status: 409 }
-      );
-    }
-
     const passwordHash = await hashPassword(password);
 
     const [user] = await query<{ id: string; username: string }>(
-      'INSERT INTO users (username, password_hash) VALUES ($1, $2) RETURNING id, username',
+      'SELECT id, username FROM users WHERE username = $1 AND password_hash = $2',
       [username, passwordHash]
     );
 
-    return NextResponse.json(
-      { message: 'Usuario creado correctamente', user },
-      { status: 201 }
-    );
+    if (!user) {
+      return NextResponse.json({ error: 'Credenciales incorrectas' }, { status: 401 });
+    }
+
+    const token = await signJWT({ sub: user.id, username: user.username });
+
+    return NextResponse.json({ token, user }, { status: 200 });
   } catch {
     return NextResponse.json({ error: 'Error interno' }, { status: 500 });
   }
