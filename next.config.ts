@@ -1,18 +1,16 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next';
 
-// CORS habilitado para todas las rutas /api/*
-// Incluye soporte para preflight OPTIONS que los navegadores envían
-// antes de peticiones cross-origin (fetch desde otro dominio).
 const nextConfig: NextConfig = {
+  // El CORS lo gestiona middleware.ts para mayor fiabilidad.
+  // Estos headers son una segunda capa de seguridad.
   async headers() {
     return [
       {
-        source: "/api/:path*",
+        source: '/api/:path*',
         headers: [
-          { key: "Access-Control-Allow-Origin", value: "*" },
-          { key: "Access-Control-Allow-Methods", value: "GET,POST,PATCH,DELETE,OPTIONS" },
-          { key: "Access-Control-Allow-Headers", value: "Content-Type, Authorization" },
-          { key: "Access-Control-Max-Age", value: "86400" },
+          { key: 'Access-Control-Allow-Origin', value: '*' },
+          { key: 'Access-Control-Allow-Methods', value: 'GET,POST,PATCH,DELETE,OPTIONS' },
+          { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization' },
         ],
       },
     ];
