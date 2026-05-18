@@ -2,6 +2,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { z } from 'zod';
 
+// Respuesta CORS para preflight OPTIONS — el navegador la envía antes de
+// cualquier petición cross-origin (fetch desde taskflow-mobile.vercel.app).
+// Sin este handler el browser recibe 405 y bloquea la petición real.
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET,POST,PATCH,DELETE,OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    },
+  });
+}
+
 const noteSchema = z.object({
   title:   z.string().min(3),
   type:    z.enum(['note', 'checklist', 'idea']),

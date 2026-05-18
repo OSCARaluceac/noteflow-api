@@ -2,6 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { z } from 'zod';
 
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET,POST,PATCH,DELETE,OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    },
+  });
+}
+
 const patchSchema = z.object({
   title:   z.string().min(3).optional(),
   content: z.string().optional(),
@@ -13,7 +24,6 @@ const patchSchema = z.object({
 
 type Ctx = { params: Promise<{ id: string }> };
 
-// GET /api/notes/:id
 export async function GET(_req: NextRequest, ctx: Ctx) {
   try {
     const { id } = await ctx.params;
@@ -30,7 +40,6 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
     if (!note) {
       return NextResponse.json({ error: 'Nota no encontrada' }, { status: 404 });
     }
-
     return NextResponse.json(note);
   } catch (error) {
     console.error('GET /api/notes/:id error:', error);
@@ -38,7 +47,6 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
   }
 }
 
-// PATCH /api/notes/:id
 export async function PATCH(request: NextRequest, ctx: Ctx) {
   try {
     const { id } = await ctx.params;
@@ -65,7 +73,6 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
     if (!updated) {
       return NextResponse.json({ error: 'Nota no encontrada' }, { status: 404 });
     }
-
     return NextResponse.json(updated);
   } catch (error) {
     console.error('PATCH /api/notes/:id error:', error);
@@ -73,7 +80,6 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
   }
 }
 
-// DELETE /api/notes/:id
 export async function DELETE(_req: NextRequest, ctx: Ctx) {
   try {
     const { id } = await ctx.params;
@@ -82,7 +88,6 @@ export async function DELETE(_req: NextRequest, ctx: Ctx) {
     if (result.length === 0) {
       return NextResponse.json({ error: 'Nota no encontrada' }, { status: 404 });
     }
-
     return new NextResponse(null, { status: 204 });
   } catch (error) {
     console.error('DELETE /api/notes/:id error:', error);

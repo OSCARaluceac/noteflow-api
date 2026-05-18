@@ -2,13 +2,23 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { z } from 'zod';
 
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET,POST,PATCH,DELETE,OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    },
+  });
+}
+
 const itemSchema = z.object({
   text: z.string().min(1, 'El texto del item no puede estar vacío'),
 });
 
 type Ctx = { params: Promise<{ id: string }> };
 
-// GET /api/notes/:id/checklist-items
 export async function GET(_req: NextRequest, ctx: Ctx) {
   try {
     const { id } = await ctx.params;
@@ -23,7 +33,6 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
   }
 }
 
-// POST /api/notes/:id/checklist-items
 export async function POST(request: NextRequest, ctx: Ctx) {
   try {
     const { id } = await ctx.params;
@@ -38,14 +47,12 @@ export async function POST(request: NextRequest, ctx: Ctx) {
     }
 
     const [note] = await query<{ type: string }>(
-      'SELECT type FROM notes WHERE id = $1',
-      [id]
+      'SELECT type FROM notes WHERE id = $1', [id]
     );
 
     if (!note) {
       return NextResponse.json({ error: 'Nota no encontrada' }, { status: 404 });
     }
-
     if (note.type !== 'checklist') {
       return NextResponse.json(
         { error: 'Solo se pueden añadir items a notas de tipo checklist' },
@@ -57,7 +64,6 @@ export async function POST(request: NextRequest, ctx: Ctx) {
       'INSERT INTO checklist_items (note_id, text) VALUES ($1, $2) RETURNING *',
       [id, result.data.text]
     );
-
     return NextResponse.json(item, { status: 201 });
   } catch (error) {
     console.error('POST checklist-items error:', error);
