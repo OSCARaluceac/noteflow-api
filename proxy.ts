@@ -43,7 +43,7 @@ async function verifyJWT(token: string): Promise<boolean> {
   }
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   // Preflight CORS
   if (request.method === 'OPTIONS') {
     return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
