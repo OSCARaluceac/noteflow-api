@@ -1,12 +1,14 @@
 export const metadata = {
-  title: 'Noteflow API',
-  description: 'REST API para la app NoteFlow',
+  title: 'NoteFlow API',
+  description: 'API REST para la app NoteFlow',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es">
-      <body>{children}</body>
+      <body style={{ margin: 0, background: '#0a0a0b', color: '#fafaf9' }}>
+        {children}
+      </body>
     </html>
   );
 }
