@@ -8,7 +8,7 @@ const CORS_HEADERS = {
 };
 
 // Rutas públicas que no requieren autenticación
-const PUBLIC_ROUTES = ['/api/auth/login', '/api/auth/register', '/api/docs', '/docs'];
+const PUBLIC_ROUTES = ['/api/auth/login', '/api/auth/register', '/api/docs', '/docs', '/api/home'];
 
 async function verifyJWT(token: string): Promise<boolean> {
   try {
