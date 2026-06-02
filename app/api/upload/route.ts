@@ -31,7 +31,7 @@ export async function POST(request: Request) {
     });
 
     // Emisión de la URL firmada (caducidad estricta: 60 segundos)
-    const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 60 });
+    const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 300 });
 
     // Construcción de la URL de acceso público persistente
     const publicUrl = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${uniqueFileName}`;

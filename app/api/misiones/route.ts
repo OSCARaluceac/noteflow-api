@@ -2,10 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { z } from 'zod';
 
+// FIX #2: Se añade image_url al schema de creación (opcional, puede ser null)
 const misionSchema = z.object({
   title:     z.string().min(3),
   categoria: z.enum(['Recolección', 'Exploración', 'Captura', 'Escolta', 'Caza']),
   rango:     z.enum(['D', 'C', 'B', 'A', 'S']),
+  image_url: z.string().url().nullable().optional(),
 });
 
 // GET /api/misiones — devuelve todas las misiones ordenadas por fecha de creación
@@ -34,10 +36,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { title, categoria, rango } = parsed.data;
+    const { title, categoria, rango, image_url } = parsed.data;
+
+    // FIX #2: INSERT incluye image_url para que las imágenes no se pierdan
+    // al migrar de localStorage a PostgreSQL.
+    // IMPORTANTE: ejecutar antes la migración de BD:
+    //   ALTER TABLE misiones ADD COLUMN IF NOT EXISTS image_url TEXT;
     const [mision] = await query(
-      'INSERT INTO misiones (title, categoria, rango) VALUES ($1, $2, $3) RETURNING *',
-      [title, categoria, rango]
+      `INSERT INTO misiones (title, categoria, rango, image_url)
+       VALUES ($1, $2, $3, $4)
+       RETURNING *`,
+      [title, categoria, rango, image_url ?? null]
     );
 
     return NextResponse.json(mision, { status: 201 });

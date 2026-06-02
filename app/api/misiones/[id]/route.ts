@@ -2,18 +2,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { z } from 'zod';
 
+// FIX #2: Se añade image_url al schema de actualización parcial
 const patchSchema = z.object({
   title:     z.string().min(3).optional(),
   categoria: z.enum(['Recolección', 'Exploración', 'Captura', 'Escolta', 'Caza']).optional(),
   rango:     z.enum(['D', 'C', 'B', 'A', 'S']).optional(),
   completed: z.boolean().optional(),
+  image_url: z.string().url().nullable().optional(),
 }).refine(data => Object.keys(data).length > 0, {
   message: 'Se requiere al menos un campo para actualizar',
 });
 
 type Ctx = { params: Promise<{ id: string }> };
 
-// PATCH /api/misiones/:id — actualiza campos parcialmente (título, rango, categoría, completed)
+// PATCH /api/misiones/:id — actualiza campos parcialmente
 export async function PATCH(request: NextRequest, ctx: Ctx) {
   try {
     const { id } = await ctx.params;
@@ -28,6 +30,9 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
 
     const fields = result.data;
     const keys = Object.keys(fields) as (keyof typeof fields)[];
+
+    // FIX #2: Los nombres de columna en PostgreSQL usan snake_case.
+    // image_url ya coincide; el resto de campos también. Sin cambios necesarios.
     const setClauses = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
     const values = keys.map(k => fields[k]);
 
